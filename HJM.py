@@ -261,6 +261,7 @@ rowLabels = generateRowLabel( dt, tenor);
 MCPaths = 1;
 ZCBPrice = 0;
 LiborR = 0;
+Caplets = 0;
 
 #MonteCarlo Simulations
 for i in xrange(0, MCPaths):
@@ -289,17 +290,20 @@ for i in xrange(0, MCPaths):
 	LiborR += temp2;
 	print "LiborRate = %f" % temp2;
 
-	c = capletsPricer( F, dt, inputTenor, rowLabels, inputStrike);
+	Caplets += capletsPricer( F, dt, inputTenor, rowLabels, inputStrike);
 
 ZCBPrice = ZCBPrice / MCPaths;
 LiborR = LiborR / MCPaths;
+Cap = Caplets / MCPaths;
 
 
 
 print "=========================="
+print "inputTenor= %f" % inputTenor;
+print "inputStrike= %f" % inputStrike;
 print "ZCBPrice= %f" % ZCBPrice;
 print "LiborR= %f" % LiborR;
+print "Cap= %f" % Cap;
 print "=========================="
-
 
 
