@@ -28,6 +28,16 @@ def trapezoidIntegration(f, param, a, b, N):
 def volMusiela(param, tau):
 	if len(param) == 4:
 		rv = param[3] + (tau*param[2]) + (tau*tau*param[1]) + (tau*tau*tau*param[0])
+	if len(param) == 5:
+		rv = param[4] + (tau*param[3]) + (tau*tau*param[2]) + (tau*tau*tau*param[1]) + (tau*tau*tau*tau*param[0]) 	
+	if len(param) == 6:
+		rv = param[5] + (tau*param[4]) + (tau*tau*param[3]) + (tau*tau*tau*param[2]) + (tau*tau*tau*tau*param[1]) + (tau*tau*tau*tau*tau*param[0])		 		
+	if len(param) == 7:
+		rv = param[6] + (tau*param[5]) + (tau*tau*param[4]) + (tau*tau*tau*param[3]) + (tau*tau*tau*tau*param[2]) + (tau*tau*tau*tau*tau*param[1]) + (tau*tau*tau*tau*tau*tau*param[0])		 		
+	if len(param) == 3:
+		rv = param[2] + (tau*param[1]) + (tau*tau*param[0])
+	if len(param)==2:
+		rv = param[1] + (tau*param[0]);
 	if len(param)==1:
 			#if( type(tau) == "int"):
 			rv = 0.6431e-2; #param[0];
@@ -54,14 +64,29 @@ def multiFactorMuMusiela(param1, param2, param3, tau):
 	M = M1+M2+M3;
 	return M;
 
+def hasNegativeRates(F):
+	maxI, maxJ =F.shape;
+	for i in range(0,maxI):
+		for j in range(0,maxJ):
+			if F[i,j] < 0:
+				return True
+	return False;
+
+
 #initialRow is a matrix
-def generateForwardCurve(initialRow, dt, tenor, header, mu, vol1, vol2, vol3):
+def generateForwardCurve(initialRow, dt, tenor, header, mu, vol1, vol2, vol3, isFAST = True):
 	#assert that header and tenor is the same length
 	i = 0 + dt; #because index 0 is already the initialRow
-	prevRow = initialRow;
+	if not isFAST:
+		prevRow = initialRow;
+		maxJ = initialRow.shape[0]; #columns
+		F = initialRow;
+	else:
+		prevRow = initialRow;
+		maxJ = 1;
+		F = initialRow[0];
 	maxI = tenor; #rows
-	maxJ = initialRow.shape[0]; #columns
-	F = initialRow;
+
 	while i <= maxI:
 		j=0;
 		row = np.array([]);
@@ -77,7 +102,9 @@ def generateForwardCurve(initialRow, dt, tenor, header, mu, vol1, vol2, vol3):
 				dF = prevRow[j+1] - prevRow[j];
 				dTau = header[j+1] - header[j];
 
-			newVal = prevRow[j] + (mu[j]*dt) + ( ( (vol1*dx1) + (vol2[j]*dx2) + (vol3[j]*dx3) ) * math.sqrt(dt) ) + ((dF/dTau)*dt);
+			newVal = prevRow[j] + (mu[j]*dt) + ( ( (vol1[j]*dx1) + (vol2[j]*dx2) + (vol3[j]*dx3) ) * math.sqrt(dt) ) + ((dF/dTau)*dt);
+			# if newVal < 0: #prevent negative rates
+			# 	newVal = 0.08;
 			row = np.append(row, newVal);
 			j += 1;
 		
@@ -171,9 +198,9 @@ Headers = [
 19.5,    20.0,    20.5,    21.0,    21.5,    22.0,    22.5,    23.0,    23.5,
 24.0,    24.5,    25.0, ];
 
-filename = "CQFExample.csv";
+#filename = "CQFExample.csv";
 #filename = 'UKYieldCurveSmall.csv';
-#filename = 'UKYieldCurveAll.csv';
+filename = 'UKYieldCurveAll.csv';
 
 print "Loading csv file";
 with open(filename, 'rb') as f:
@@ -234,18 +261,30 @@ volThree = PCAThree * LambdaThreeSq;
 
 print "computing linear regression factor";
 if "CQF" in filename:
-	H = CQFExampleHeaders
+	H = CQFExampleHeaders;
+	polyOne = 1; #how many polynomial factors to do curve fitting?
+	polyTwo = 3;
+	polyThree = 3; 
 else:
 	H = Headers;
+	polyOne = 6;
+	polyTwo = 6;
+	polyThree = 5;
 
-la1 = np.polyfit(H, volOne, 0, full=True);
-la2 = np.polyfit(H, volTwo, 3, full=True);
-la3 = np.polyfit(H, volThree, 3, full=True)
+la1 = np.polyfit(H, volOne, polyOne, full=True);
+la2 = np.polyfit(H, volTwo, polyTwo, full=True);
+la3 = np.polyfit(H, volThree, polyThree, full=True);
 
 print "computing 3 factors vol (musiela)";
 vol1Musiela = volMusiela(la1[0],np.array(H));
 vol2Musiela = volMusiela(la2[0],np.array(H));
 vol3Musiela = volMusiela(la3[0],np.array(H));
+
+#Plot PCA
+# plt.plot(H, volOne, label='PCAOne'); 
+# plt.plot(H, vol1Musiela, label='Fitted');
+# plt.legend(loc='best');
+# plt.show();
 
 print "computing mu (musiela)";
 mu = multiFactorMuMusiela(la1[0],la2[0],la3[0],np.array(H));
@@ -258,6 +297,7 @@ bla2 = bla2 * volMusiela(la2[0],0.5);
 bla3 = trapezoidIntegration(volMusiela,la3[0],0,0,100);
 bla3 = bla3 * volMusiela(la3[0],0.5);
 
+#initialRow = np.array(myArray[0]) * 1e-2;
 initialRow = np.array(myArray[len(myArray)-1]) * 1e-2; #get the last row as seed data (data is in percentage)
 
 print "Please enter tenor to price ZCB and CapFloors (in year, for example, 1.5 for 1year 6months): ";
@@ -269,30 +309,40 @@ inputStrike = float(raw_input().split()[0])/100;
 dt = 0.01; #time interval
 tenor = 10; #generate every dt until 10yr tenor
 rowLabels = generateRowLabel( dt, tenor);
-MCPaths = 1;
+MCPaths = 100;
 ZCBPrice = 0;
 LiborR = 0;
 Caplets = 0;
 Floorlets = 0;
 
-#MonteCarlo Simulations
-for i in xrange(0, MCPaths):
-	print " MC: %d" % i;
-	F = generateForwardCurve( initialRow, dt, tenor, H, mu, vol1Musiela, vol2Musiela, vol3Musiela);
-	
 
-	# #series by column
+#MonteCarlo Simulations
+for i in range(0,MCPaths):
+	print " MC: %d" % i;
+	F = generateForwardCurve( initialRow, dt, tenor, H, mu, vol1Musiela, vol2Musiela, vol3Musiela, isFAST=True);
+	checkNegativeRates = hasNegativeRates(F);
+	if checkNegativeRates == True:
+		print "has negative rates!"
+		MCPaths = MCPaths -1; #skip this run
+		continue;
+
+	#series by column
 	# plt.plot(rowLabels,F[:,0], label='spot');
-	# #plt.show();
+	# plt.plot(rowLabels,F[:,59], label='5 yr');
+	# plt.plot(rowLabels,F[:,99], label='25 yr');
+	# plt.legend(loc='best');
+	# plt.title('Foward Curve Evolution For Each Tenor (series by column)');
+	# plt.show();
 
 	# #series by row
 	# plt.plot(H, F[0], label='0'); #0 year
-	# plt.plot(H,F[200], label='2'); #2 year
-	# plt.plot(H,F[500], label='5'); #5 year
-	# plt.plot(H,F[700], label='7'); #7 year
-	# plt.plot(H,F[1000], label='10'); #10 year
+	# plt.plot(H,F[200], label='2 yr'); #2 year
+	# plt.plot(H,F[500], label='5 yr'); #5 year
+	# plt.plot(H,F[700], label='7 yr'); #7 year
+	# plt.plot(H,F[1000], label='10 yr'); #10 year
 	# plt.legend(loc='best');
-	# #plt.show();
+	# plt.title('Forward Term Structures - Yield Curve (series by row)'); 
+	# plt.show();
 
 	temp1 = ZCBPricer( F, dt, 0, inputTenor, rowLabels );
 	ZCBPrice += temp1;
@@ -304,6 +354,7 @@ for i in xrange(0, MCPaths):
 
 	Caplets += capletsPricer( F, dt, inputTenor, rowLabels, inputStrike );
 	Floorlets += floorletsPricer( F, dt, inputTenor, rowLabels, inputStrike );
+
 
 ZCBPrice = ZCBPrice / MCPaths;
 LiborR = LiborR / MCPaths;
