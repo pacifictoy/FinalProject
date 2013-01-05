@@ -120,7 +120,7 @@ def ZCBPricer( F, dt, startTenor, endTenor, rowLabels ):
 def LiborRate( F, dt, startTenor, endTenor, rowLabels):
 	startIndex = linearSearch( rowLabels, startTenor );
 	endIndex = linearSearch( rowLabels, endTenor );
-	rate = ZCBRate( F, dt, startTenor, endTenor, rowLabels);
+	rate = ZCBRate( F, dt, startTenor, endTenor, rowLabels)/dt;
 	avg = rate/(endIndex-startIndex);
 	return avg;
 
@@ -134,6 +134,18 @@ def capletsPricer( F, dt, tenor, rowLabels, strike ):
 		totalCap += caplet;
 		i = i+dt;
 	return totalCap;
+
+def floorletsPricer( F, dt, tenor, rowLabels, strike ):
+	i = 0+dt;
+	totalCap = 0;
+	while i<=tenor:
+		ZCBPrice = ZCBPricer( F, dt, 0, i, rowLabels );
+		LR = LiborRate( F, dt, i-dt, i, rowLabels );
+		caplet = ZCBPrice * max(strike-LR,0) * dt;
+		totalCap += caplet;
+		i = i+dt;
+	return totalCap;
+
 
 myArray = [];  
 CQFExampleHeaders = [  
@@ -254,7 +266,6 @@ inputTenor = float(raw_input().split()[0]);
 print "Please enter strike for CapFloor (in percent, for example: 5 for 5%): ";
 inputStrike = float(raw_input().split()[0])/100;
 
-
 dt = 0.01; #time interval
 tenor = 10; #generate every dt until 10yr tenor
 rowLabels = generateRowLabel( dt, tenor);
@@ -262,6 +273,7 @@ MCPaths = 1;
 ZCBPrice = 0;
 LiborR = 0;
 Caplets = 0;
+Floorlets = 0;
 
 #MonteCarlo Simulations
 for i in xrange(0, MCPaths):
@@ -290,20 +302,23 @@ for i in xrange(0, MCPaths):
 	LiborR += temp2;
 	print "LiborRate = %f" % temp2;
 
-	Caplets += capletsPricer( F, dt, inputTenor, rowLabels, inputStrike);
+	Caplets += capletsPricer( F, dt, inputTenor, rowLabels, inputStrike );
+	Floorlets += floorletsPricer( F, dt, inputTenor, rowLabels, inputStrike );
 
 ZCBPrice = ZCBPrice / MCPaths;
 LiborR = LiborR / MCPaths;
 Cap = Caplets / MCPaths;
-
-
+Floor = Floorlets / MCPaths;
 
 print "=========================="
+print "======FINAL RESULT========"
+print "MCPaths= %d" % MCPaths;
 print "inputTenor= %f" % inputTenor;
 print "inputStrike= %f" % inputStrike;
 print "ZCBPrice= %f" % ZCBPrice;
 print "LiborR= %f" % LiborR;
 print "Cap= %f" % Cap;
+print "Floor= %f" % Floor;
 print "=========================="
 
 
