@@ -46,6 +46,7 @@ def volMusiela(param, tau):
 			#	rv = np.resize(rv,(len(tau),))
 	return rv;
 
+#generate drift or Mu
 def multiFactorMuMusiela(param1, param2, param3, tau):
 	M1 = np.array([]);
 	M2 = np.array([]);
@@ -64,6 +65,7 @@ def multiFactorMuMusiela(param1, param2, param3, tau):
 	M = M1+M2+M3;
 	return M;
 
+#check if forward curve has negative rates
 def hasNegativeRates(F):
 	maxI, maxJ =F.shape;
 	for i in range(0,maxI):
@@ -73,7 +75,8 @@ def hasNegativeRates(F):
 	return False;
 
 
-#initialRow is a matrix
+#generation of forward curve
+#if isFAST is true, that means we only generate the first column. This is to get faster performance
 def generateForwardCurve(initialRow, dt, tenor, header, mu, vol1, vol2, vol3, isFAST = True):
 	#assert that header and tenor is the same length
 	i = 0 + dt; #because index 0 is already the initialRow
@@ -103,8 +106,8 @@ def generateForwardCurve(initialRow, dt, tenor, header, mu, vol1, vol2, vol3, is
 				dTau = header[j+1] - header[j];
 
 			newVal = prevRow[j] + (mu[j]*dt) + ( ( (vol1[j]*dx1) + (vol2[j]*dx2) + (vol3[j]*dx3) ) * math.sqrt(dt) ) + ((dF/dTau)*dt);
-			# if newVal < 0: #prevent negative rates
-			# 	newVal = 0.08;
+			if newVal < 0: #prevent negative rates
+				newVal = 0.00;
 			row = np.append(row, newVal);
 			j += 1;
 		
@@ -121,12 +124,16 @@ def generateRowLabel( dt, tenor):
 		i += dt;
 	return rv;
 
+#due to known floating point limitation, we can't simply use "==" to search
+#such we can't use np.where() function, and we have to use our own search function
+#to find a floating point in the index, we just see if the difference is less than 1e-7
 def linearSearch( inputArray, val ):
 	for i in xrange(0,len(inputArray)):
 		if abs(inputArray[i]-val) < 1e-7:
 			return i;
 	return(-1);
 
+#Find zero coupon bond rate
 def ZCBRate( F, dt, startTenor, endTenor, rowLabels ):
 	startIndex = linearSearch( rowLabels, startTenor );
 	endIndex = linearSearch( rowLabels, endTenor );
@@ -136,6 +143,7 @@ def ZCBRate( F, dt, startTenor, endTenor, rowLabels ):
 	total = sum(F[:,0][startIndex:endIndex]) * dt;
 	return total;
 
+#Price a ZCB
 def ZCBPricer( F, dt, startTenor, endTenor, rowLabels ):
 	rate = ZCBRate( F, dt, startTenor, endTenor, rowLabels );
 	if rate != -1:
@@ -144,6 +152,7 @@ def ZCBPricer( F, dt, startTenor, endTenor, rowLabels ):
 		print "can't price ZCB"
 		return -1;
 
+#find implied Libor rate
 def LiborRate( F, dt, startTenor, endTenor, rowLabels):
 	startIndex = linearSearch( rowLabels, startTenor );
 	endIndex = linearSearch( rowLabels, endTenor );
@@ -151,7 +160,8 @@ def LiborRate( F, dt, startTenor, endTenor, rowLabels):
 	avg = rate/(endIndex-startIndex);
 	return avg;
 
-def capletsPricer( F, dt, tenor, rowLabels, strike ):
+#price a CAP, which is a summation of caplets
+def capPricer( F, dt, tenor, rowLabels, strike ):
 	i = 0+dt;
 	totalCap = 0;
 	while i<=tenor:
@@ -162,7 +172,8 @@ def capletsPricer( F, dt, tenor, rowLabels, strike ):
 		i = i+dt;
 	return totalCap;
 
-def floorletsPricer( F, dt, tenor, rowLabels, strike ):
+#price a FLOOR, which is a summation of floorlets
+def floorPricer( F, dt, tenor, rowLabels, strike ):
 	i = 0+dt;
 	totalCap = 0;
 	while i<=tenor:
@@ -262,7 +273,7 @@ volThree = PCAThree * LambdaThreeSq;
 print "computing linear regression factor";
 if "CQF" in filename:
 	H = CQFExampleHeaders;
-	polyOne = 1; #how many polynomial factors to do curve fitting?
+	polyOne = 1; #how many polynomial factors to do curve fittTing?
 	polyTwo = 3;
 	polyThree = 3; 
 else:
@@ -309,11 +320,11 @@ inputStrike = float(raw_input().split()[0])/100;
 dt = 0.01; #time interval
 tenor = 10; #generate every dt until 10yr tenor
 rowLabels = generateRowLabel( dt, tenor);
-MCPaths = 100;
+MCPaths = 1000;
 ZCBPrice = 0;
 LiborR = 0;
-Caplets = 0;
-Floorlets = 0;
+Caps = 0;
+Floors = 0;
 
 
 #MonteCarlo Simulations
@@ -327,12 +338,12 @@ for i in range(0,MCPaths):
 		continue;
 
 	#series by column
-	# plt.plot(rowLabels,F[:,0], label='spot');
+	#plt.plot(rowLabels,F[:,0], label='spot');
 	# plt.plot(rowLabels,F[:,59], label='5 yr');
 	# plt.plot(rowLabels,F[:,99], label='25 yr');
-	# plt.legend(loc='best');
+	#plt.legend(loc='best');
 	# plt.title('Foward Curve Evolution For Each Tenor (series by column)');
-	# plt.show();
+	#plt.show();
 
 	# #series by row
 	# plt.plot(H, F[0], label='0'); #0 year
@@ -352,14 +363,14 @@ for i in range(0,MCPaths):
 	LiborR += temp2;
 	print "LiborRate = %f" % temp2;
 
-	Caplets += capletsPricer( F, dt, inputTenor, rowLabels, inputStrike );
-	Floorlets += floorletsPricer( F, dt, inputTenor, rowLabels, inputStrike );
+	Caps += capPricer( F, dt, inputTenor, rowLabels, inputStrike );
+	Floors += floorPricer( F, dt, inputTenor, rowLabels, inputStrike );
 
 
 ZCBPrice = ZCBPrice / MCPaths;
 LiborR = LiborR / MCPaths;
-Cap = Caplets / MCPaths;
-Floor = Floorlets / MCPaths;
+Cap = Caps / MCPaths;
+Floor = Floors / MCPaths;
 
 print "=========================="
 print "======FINAL RESULT========"
