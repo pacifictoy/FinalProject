@@ -4,12 +4,14 @@ import math;
 from ctypes import *;
 from collections import *;
 from ImpliedVol import *;
+import matplotlib.pyplot as plt;
 
 # class FDResult(Structure):
 # 	_fields_ = [ ("S", c_float), ("Payoff", c_float), ("V", c_float) ]
 
 FDResult = namedtuple('FDResult', ['S', 'Payoff', 'V']);
 OptionContract = namedtuple('OptionContract', ['Type', 'Strike', 'Expiration' ])
+OptionPrice = namedtuple('OptionPrice', ["ContractName", "FDGrid", "FDPrice", "BSPrice"]);
 
 def printFDResult(inputArray):
 	for item in inputArray:
@@ -19,6 +21,10 @@ def Heaviside( s, k):
 	if s>k:
 		return 1.0
 	return 0.0
+
+def findUniformNAS( strike, ds=1 ):
+	NAS = (2 * float(strike)) / ds;
+	return int(NAS);
 
 #NAS: Number of Asset Steps
 #NTS: Number of Time Steps
@@ -41,9 +47,9 @@ def OptionsFDPricer( volHigh, volLow, r, optionType, strike, expiration, quantit
 		elif optionType == "put":
 			Payoff.append(max(strike-S[i],0) * quantity)
 		elif optionType == "digital call":
-			Payoff.append(Heaviside(S[i], strike))
+			Payoff.append(Heaviside(S[i], strike) * quantity)
 		elif optionType == "digital put":
-			Payoff.append(Heaviside(-S[i], -strike))
+			Payoff.append(Heaviside(-S[i], -strike) * quantity)
 
 
 		VOld.append(float(Payoff[i]));
@@ -85,40 +91,70 @@ def findClosest( inputFDResult, targetPrice):
 			return inputFDResult[i]
 		elif (abs(inputFDResult[i].S - targetPrice) <= ds) and (inputFDResult[i+1].S-inputFDResult[i].S) <= ds:
 			return FDResult((inputFDResult[i].S + inputFDResult[i+1].S)/2, (inputFDResult[i].Payoff + inputFDResult[i+1].Payoff)/2, (inputFDResult[i].V + inputFDResult[i+1].V)/2)
-
 	return None;
 
-assetPrice = 101
-volHigh = 0.3
-volLow = 0.3
-r = 0.05
+def drawDiagram( Result ):
+	#prepare to draw
+	maxXAxis = min([len(x.FDGrid) for x in Result]) #so we get uniform length
+	xAxis = [ x.S for x in Result[0].FDGrid[:maxXAxis] ] 
+	for i in range(0,len(Result)):
+		if i == 0:
+			yAxisV = np.array([ x.V for x in Result[i].FDGrid[:maxXAxis] ])
+			yAxisPayoff = np.array([ x.Payoff for x in Result[i].FDGrid[:maxXAxis] ])
+		else:
+			yAxisV += np.array([ x.V for x in Result[i].FDGrid[:maxXAxis] ])
+			yAxisPayoff +=np.array([ x.Payoff for x in Result[i].FDGrid[:maxXAxis] ])
+
+	TotalPremium = sum([x.FDPrice for x in Result])
+	yAxisV += TotalPremium
+	yAxisPayoff += TotalPremium
+	#Draw 
+	plt.plot(xAxis,yAxisV, label='V');
+	plt.plot(xAxis,yAxisPayoff, label='Payoff')
+	plt.legend(loc='best');
+	plt.title('Options Price and Payoff diagram');
+	plt.show();
+
+
+assetPrice = 100
+volLow = 0.2
+volHigh = 0.2
+r = 0.02
 strike = 100 #at the money
-NAS = 100
-quantity =1
-optionType = "call";
+NAS = 200
 expiration = 1;
 
-
-LongCall = { "Contract": OptionContract( "call", 100, expiration), "Quantity":1, "Name": "LongCall" };
-LongPut = { "Contract": OptionContract("put", 100, expiration), "Quantity": 1, "Name": "LongPut" };
-LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 1, "Name": "LongDC" };
+LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 10, "Name": "LongDC" };
+LongCall = { "Contract": OptionContract( "call", 90, expiration), "Quantity":0.008126, "Name": "LongCall" };
+ShortCall = { "Contract": OptionContract("call", 110, expiration), "Quantity": -1, "Name": "ShortCall" };
 Portfolio = [ 
-	#LongCall,
-	#LongPut,
 	LongDC,
+	LongCall,
+	ShortCall,
 ]
 
-
+Result = []
 
 for item in Portfolio:
-	asset = item["Contract"];
-	q = item["Quantity"];
-	priceFD  = OptionsFDPricer( volHigh, volLow, r, asset.Type, asset.Strike, asset.Expiration, q, NAS);
-	price = findClosest( priceFD, assetPrice );
+	asset = item["Contract"]
+	q = item["Quantity"]
+	NAS = findUniformNAS( asset.Strike )
+	priceFD  = OptionsFDPricer( volHigh, volLow, r, asset.Type, asset.Strike, asset.Expiration, q, NAS)
+	ResultPrice = OptionPrice( item["Name"],priceFD, 0,0)
+	price = findClosest( priceFD, assetPrice )
 	if price != None:
-		print price.V;
+	 	print price.V
+	 	ResultPrice = ResultPrice._replace(FDPrice=price.V)
+	else:
+	 	print "can't find price"
+	 	
+	Result.append(ResultPrice)
 
+	# if asset.Type == "call":
+	# 	BS = EuropeanCall( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration)
+	# elif asset.Type == "digital call":
+	# 	BS = DigitalCall( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration)
 
-	# if asset.Type == "put" or asset.TYpe == "call":
-	# 	EC = EuropeanPut( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration);
+drawDiagram(Result)
+
 
