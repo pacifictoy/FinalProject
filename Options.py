@@ -5,6 +5,7 @@ from ctypes import *;
 from collections import *;
 from ImpliedVol import *;
 import matplotlib.pyplot as plt;
+from scipy.optimize import *;
 
 # class FDResult(Structure):
 # 	_fields_ = [ ("S", c_float), ("Payoff", c_float), ("V", c_float) ]
@@ -26,9 +27,40 @@ def findUniformNAS( strike, ds=1 ):
 	NAS = (2 * float(strike)) / ds;
 	return int(NAS);
 
+def pricePortfolio( Portfolio ):
+	Result = []
+	for item in Portfolio:
+		asset = item["Contract"]
+		q = item["Quantity"]
+		NAS = findUniformNAS( asset.Strike )
+		priceFD  = OptionsFDPricer( volHigh, volLow, r, asset.Type, asset.Strike, asset.Expiration, q, NAS, WB="B")
+		ResultPrice = OptionPrice( item["Name"],priceFD, 0,0)
+		price = findClosest( priceFD, assetPrice )
+		if price != None:
+		 	print price.V
+		 	ResultPrice = ResultPrice._replace(FDPrice=price.V)
+		else:
+		 	print "can't find price"
+		 	
+		Result.append(ResultPrice)
+
+		# if asset.Type == "call":
+		# 	BS = EuropeanCall( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration)
+		# elif asset.Type == "digital call":
+		# 	BS = DigitalCall( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration)
+
+
+	return Result
+
+# def optimizePortfolio( Portfolio ):
+# 	Result = pricePortfolio( Portfolio );
+
+
+
 #NAS: Number of Asset Steps
 #NTS: Number of Time Steps
-def OptionsFDPricer( volHigh, volLow, r, optionType, strike, expiration, quantity, NAS ):
+#WB: Worst or Best (to provide bid ask spread)
+def OptionsFDPricer( volHigh, volLow, r, optionType, strike, expiration, quantity, NAS, WB = "W" ):
 	ds = 2 * float( strike ) / NAS ;
 	dt = 0.9 / volHigh / volHigh / NAS / NAS;
 	NTS = int(expiration/dt) + 1;
@@ -64,10 +96,16 @@ def OptionsFDPricer( volHigh, volLow, r, optionType, strike, expiration, quantit
 			delta = (VOld[i+1] - VOld[i-1])/2/ds; #central difference
 			gamma = (VOld[i+1] - (2 * VOld[i]) + VOld[i-1]) / ds / ds;
 
-			if gamma > 0:
-				vol = volLow
+			if WB == "W":
+				if gamma > 0:
+					vol = volLow
+				else:
+					vol = volHigh
 			else:
-				vol = volHigh
+				if gamma > 0:
+					vol = volHigh
+				else:
+					vol = volLow
 
 			temp = vol*S[i];
 			theta = ( r * VOld[i] ) - (0.5* math.pow(temp, 2) * gamma ) - ( r * S[i] * delta )
@@ -89,6 +127,8 @@ def findClosest( inputFDResult, targetPrice):
 	for i in range (0,len(inputFDResult)-1):
 		if inputFDResult[i].S == targetPrice:
 			return inputFDResult[i]
+		elif inputFDResult[i+1].S ==  targetPrice:
+			return inputFDResult[i+1]
 		elif (abs(inputFDResult[i].S - targetPrice) <= ds) and (inputFDResult[i+1].S-inputFDResult[i].S) <= ds:
 			return FDResult((inputFDResult[i].S + inputFDResult[i+1].S)/2, (inputFDResult[i].Payoff + inputFDResult[i+1].Payoff)/2, (inputFDResult[i].V + inputFDResult[i+1].V)/2)
 	return None;
@@ -106,8 +146,8 @@ def drawDiagram( Result ):
 			yAxisPayoff +=np.array([ x.Payoff for x in Result[i].FDGrid[:maxXAxis] ])
 
 	TotalPremium = sum([x.FDPrice for x in Result])
-	yAxisV += TotalPremium
-	yAxisPayoff += TotalPremium
+	yAxisV -= TotalPremium
+	yAxisPayoff -= TotalPremium
 	#Draw 
 	plt.plot(xAxis,yAxisV, label='V');
 	plt.plot(xAxis,yAxisPayoff, label='Payoff')
@@ -118,43 +158,24 @@ def drawDiagram( Result ):
 
 assetPrice = 100
 volLow = 0.2
-volHigh = 0.2
+volHigh = 0.4
 r = 0.02
 strike = 100 #at the money
 NAS = 200
 expiration = 1;
 
-LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 10, "Name": "LongDC" };
-LongCall = { "Contract": OptionContract( "call", 90, expiration), "Quantity":0.008126, "Name": "LongCall" };
-ShortCall = { "Contract": OptionContract("call", 110, expiration), "Quantity": -1, "Name": "ShortCall" };
+LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 4.5, "Name": "LongDC" };
+LongCall = { "Contract": OptionContract( "call", 110, expiration), "Quantity": 1, "Name": "LongCall" };
+ShortCall = { "Contract": OptionContract("call", 90, expiration), "Quantity": -1, "Name": "ShortCall" };
 Portfolio = [ 
 	LongDC,
 	LongCall,
 	ShortCall,
 ]
 
-Result = []
-
-for item in Portfolio:
-	asset = item["Contract"]
-	q = item["Quantity"]
-	NAS = findUniformNAS( asset.Strike )
-	priceFD  = OptionsFDPricer( volHigh, volLow, r, asset.Type, asset.Strike, asset.Expiration, q, NAS)
-	ResultPrice = OptionPrice( item["Name"],priceFD, 0,0)
-	price = findClosest( priceFD, assetPrice )
-	if price != None:
-	 	print price.V
-	 	ResultPrice = ResultPrice._replace(FDPrice=price.V)
-	else:
-	 	print "can't find price"
-	 	
-	Result.append(ResultPrice)
-
-	# if asset.Type == "call":
-	# 	BS = EuropeanCall( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration)
-	# elif asset.Type == "digital call":
-	# 	BS = DigitalCall( assetPrice, volHigh, 0, r, asset.Strike, asset.Expiration)
-
+#Price static hedging
+Result = pricePortfolio(Portfolio)
 drawDiagram(Result)
+
 
 
