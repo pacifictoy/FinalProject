@@ -1,6 +1,11 @@
 from scipy import stats
 import math
 
+def Heaviside( s, k):
+	if s>k:
+		return 1.0
+	return 0.0
+
 def dOne(asset, vol, divyld, intrate, strike, expiry):
 	d1 = (math.log(float(asset)/float(strike)) + ((intrate - divyld + (0.5 * vol * vol)) * expiry)) / (float(vol) * math.sqrt(expiry))
 	return d1	
@@ -21,8 +26,13 @@ def EuropeanCall(asset, vol, divyld, intrate, strike, expiry):
 	Call = (asset * math.exp(-divyld*expiry) * N1p(asset, vol, divyld, intrate, strike, expiry)) - (strike * math.exp(-intrate * expiry) * N2p(asset, vol, divyld, intrate, strike, expiry))
 	return Call
 
+def DigitalCall(asset, vol, divyld, intrate, strike, expiry):
+	Payout = Heaviside( asset, strike )
+	RV = Payout * N2p(asset, vol, divyld, intrate, strike, expiry) * math.exp(-intrate*expiry)
+	return RV
+
 def EuropeanPut(asset, vol, divyld, intrate, strike, expiry):
-	Put = (strike * math.exp(-divyld*expiry) * N1p(asset, vol, divyld, intrate, strike, expiry)) - (asset * math.exp(-intrate * expiry) * N2p(asset, vol, divyld, intrate, strike, expiry))
+	Put = (strike * math.exp(-intrate*expiry) * N2p(asset, vol, divyld, intrate, strike, expiry)) - (asset * math.exp(-divyield * expiry) * N1p(asset, vol, divyld, intrate, strike, expiry))
 	return Put
 
 #use bruteforce method, accurate until 2nd decimal point (very poor accuracy)

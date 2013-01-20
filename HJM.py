@@ -27,13 +27,13 @@ def trapezoidIntegration(f, param, a, b, N):
 #result is an array
 def volMusiela(param, tau):
 	if len(param) == 4:
-		rv = param[3] + (tau*param[2]) + (tau*tau*param[1]) + (tau*tau*tau*param[0])
+		rv = param[3] + (tau*param[2]) + (tau*tau*param[1]) + (tau**3*param[0])
 	if len(param) == 5:
-		rv = param[4] + (tau*param[3]) + (tau*tau*param[2]) + (tau*tau*tau*param[1]) + (tau*tau*tau*tau*param[0]) 	
+		rv = param[4] + (tau*param[3]) + (tau*tau*param[2]) + (tau**3*param[1]) + (tau**4*param[0]) 	
 	if len(param) == 6:
-		rv = param[5] + (tau*param[4]) + (tau*tau*param[3]) + (tau*tau*tau*param[2]) + (tau*tau*tau*tau*param[1]) + (tau*tau*tau*tau*tau*param[0])		 		
+		rv = param[5] + (tau*param[4]) + (tau*tau*param[3]) + (tau**3*param[2]) + (tau**4*param[1]) + (tau**5*param[0])		 		
 	if len(param) == 7:
-		rv = param[6] + (tau*param[5]) + (tau*tau*param[4]) + (tau*tau*tau*param[3]) + (tau*tau*tau*tau*param[2]) + (tau*tau*tau*tau*tau*param[1]) + (tau*tau*tau*tau*tau*tau*param[0])		 		
+		rv = param[6] + (tau*param[5]) + (tau*tau*param[4]) + (tau**3*param[3]) + (tau**4*param[2]) + (tau**5*param[1]) + (tau**6*param[0])		 		
 	if len(param) == 3:
 		rv = param[2] + (tau*param[1]) + (tau*tau*param[0])
 	if len(param)==2:
