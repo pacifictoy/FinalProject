@@ -209,6 +209,8 @@ Headers = [
 19.5,    20.0,    20.5,    21.0,    21.5,    22.0,    22.5,    23.0,    23.5,
 24.0,    24.5,    25.0, ];
 
+#MAIN Starts HERE
+
 #filename = "CQFExample.csv";
 #filename = 'UKYieldCurveSmall.csv';
 filename = 'UKYieldCurveAll.csv';
@@ -301,12 +303,12 @@ print "computing mu (musiela)";
 mu = multiFactorMuMusiela(la1[0],la2[0],la3[0],np.array(H));
 
 #test only
-bla1 = trapezoidIntegration(volMusiela,la1[0],0,0,100);
-bla1 = bla1 * volMusiela(la1[0],0.5);
-bla2 = trapezoidIntegration(volMusiela,la2[0],0,0,100);
-bla2 = bla2 * volMusiela(la2[0],0.5);
-bla3 = trapezoidIntegration(volMusiela,la3[0],0,0,100);
-bla3 = bla3 * volMusiela(la3[0],0.5);
+# bla1 = trapezoidIntegration(volMusiela,la1[0],0,0,100);
+# bla1 = bla1 * volMusiela(la1[0],0.5);
+# bla2 = trapezoidIntegration(volMusiela,la2[0],0,0,100);
+# bla2 = bla2 * volMusiela(la2[0],0.5);
+# bla3 = trapezoidIntegration(volMusiela,la3[0],0,0,100);
+# bla3 = bla3 * volMusiela(la3[0],0.5);
 
 #initialRow = np.array(myArray[0]) * 1e-2;
 initialRow = np.array(myArray[len(myArray)-1]) * 1e-2; #get the last row as seed data (data is in percentage)

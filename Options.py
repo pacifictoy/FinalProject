@@ -177,6 +177,9 @@ def drawDiagram( Result ):
 	plt.show();
 
 
+#MAIN. Starts HERE
+
+
 #THIS IS THE  PORTFOLIO STRUCTURE
 #PLEASE CHANGE HERE TO CHANGE THE PORTFOLIO STRUCTURE
 LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 20, "Name": "LongDC" };
