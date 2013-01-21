@@ -7,6 +7,14 @@ from ImpliedVol import *;
 import matplotlib.pyplot as plt;
 from scipy.optimize import *;
 
+assetPrice = 100
+volLow = 0.2
+volHigh = 0.25
+r = 0.02
+strike = 100 #at the money
+NAS = 200
+expiration = 1;
+
 # class FDResult(Structure):
 # 	_fields_ = [ ("S", c_float), ("Payoff", c_float), ("V", c_float) ]
 
@@ -33,7 +41,7 @@ def pricePortfolio( Portfolio ):
 		asset = item["Contract"]
 		q = item["Quantity"]
 		NAS = findUniformNAS( asset.Strike )
-		priceFD  = OptionsFDPricer( volHigh, volLow, r, asset.Type, asset.Strike, asset.Expiration, q, NAS, WB="B")
+		priceFD  = OptionsFDPricer( volHigh, volLow, r, asset.Type, asset.Strike, asset.Expiration, q, NAS, WB="W")
 		ResultPrice = OptionPrice( item["Name"],priceFD, 0,0)
 		price = findClosest( priceFD, assetPrice )
 		if price != None:
@@ -52,8 +60,21 @@ def pricePortfolio( Portfolio ):
 
 	return Result
 
-# def optimizePortfolio( Portfolio ):
-# 	Result = pricePortfolio( Portfolio );
+def f( x, Portfolio ):
+	Portfolio[1]["Quantity"] = x[0]
+	Portfolio[2]["Quantity"] = x[1]
+	Result = pricePortfolio( Portfolio );
+	TotalPremium = sum([x.FDPrice for x in Result])
+	return TotalPremium
+
+def vf(x, Portfolio):
+	return [ f(x, Portfolio), 0]
+
+def optimizePortfolio( Portfolio ):
+	x0 = [1,-1]
+	xx = fsolve( vf, x0, args=(Portfolio))
+	return xx
+
 
 
 
@@ -156,15 +177,9 @@ def drawDiagram( Result ):
 	plt.show();
 
 
-assetPrice = 100
-volLow = 0.2
-volHigh = 0.4
-r = 0.02
-strike = 100 #at the money
-NAS = 200
-expiration = 1;
-
-LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 4.5, "Name": "LongDC" };
+#THIS IS THE  PORTFOLIO STRUCTURE
+#PLEASE CHANGE HERE TO CHANGE THE PORTFOLIO STRUCTURE
+LongDC = { "Contract": OptionContract("digital call", 100, expiration), "Quantity": 20, "Name": "LongDC" };
 LongCall = { "Contract": OptionContract( "call", 110, expiration), "Quantity": 1, "Name": "LongCall" };
 ShortCall = { "Contract": OptionContract("call", 90, expiration), "Quantity": -1, "Name": "ShortCall" };
 Portfolio = [ 
@@ -176,6 +191,14 @@ Portfolio = [
 #Price static hedging
 Result = pricePortfolio(Portfolio)
 drawDiagram(Result)
+
+#Optimize quantity of the call spread
+OptimizedParam = optimizePortfolio(Portfolio)
+Portfolio[1]["Quantity"] = OptimizedParam[0]
+Portfolio[2]["Quantity"] = OptimizedParam[1]
+Result = pricePortfolio(Portfolio)
+drawDiagram(Result)
+
 
 
 
